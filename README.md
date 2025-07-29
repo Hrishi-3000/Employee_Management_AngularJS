@@ -1,4 +1,4 @@
-#  Employee Management System (AngularJS v1.x) - MiniProject-Series-07
+#  Employee Management (AngularJS v1.x) - MiniProject-Series-07
 
 
 A simple, elegant Employee Management System built using **AngularJS**, HTML, and Bootstrap. It allows users to add, update, delete, and filter employee records with a responsive UI and modern enhancements.
