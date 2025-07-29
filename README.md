@@ -6,7 +6,7 @@ A simple, elegant Employee Management System built using **AngularJS**, HTML, an
 
 ##  Live Demo
 
-🔗(https://employee-management-angular-js.vercel.app/) 
+🔗 https://employee-management-angular-js.vercel.app/
 
 ---
 
