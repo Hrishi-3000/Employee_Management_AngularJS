@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html ng-app="employeeApp">
+<head>
+  <meta charset="UTF-8">
+  <title>Advanced Employee Management System</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .form-control, .btn { margin-bottom: 10px; }
+    img.thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; }
+    .toast { position: fixed; top: 10px; right: 10px; background: #4CAF50; color: white; padding: 10px 20px; border-radius: 5px; display: none; }
+
+    footer {
+      background: #f8f8f8;
+      text-align: center;
+      padding: 20px 0;
+      margin-top: 30px;
+      border-top: 1px solid #ddd;
+    }
+    .social-icons {
+      margin-top: 10px;
+    }
+    .social-icon {
+      margin: 0 10px;
+      color: #555;
+      font-size: 20px;
+      transition: 0.3s;
+    }
+    .social-icon:hover {
+      color: #0073b1; /* LinkedIn Blue as default hover */
+    }
+  </style>
+</head>
+<body ng-controller="EmployeeCtrl">
+
+<div class="container">
+  <h2 class="text-center">Employee Management System</h2>
+
+  <!-- FORM -->
+  <form name="empForm" ng-submit="addOrUpdateEmployee()">
+    <input type="text" ng-model="employee.name" placeholder="Name" class="form-control" required>
+    <input type="text" ng-model="employee.department" placeholder="Department" class="form-control" required>
+    <input type="number" ng-model="employee.salary" placeholder="Salary" class="form-control" required>
+    <input type="file" file-model="employee.photoFile" class="form-control" accept="image/*">
+    <button class="btn btn-primary" ng-disabled="empForm.$invalid">{{ editMode ? 'Update' : 'Add' }} Employee</button>
+    <button class="btn btn-default" ng-click="resetForm()">Clear</button>
+  </form>
+
+  <!-- FILTERS -->
+  <div class="row">
+    <div class="col-md-3"><input type="text" ng-model="searchText" class="form-control" placeholder="Search by name, dept or ID"></div>
+    <div class="col-md-3"><input type="text" ng-model="deptFilter" class="form-control" placeholder="Filter by Department"></div>
+    <div class="col-md-3"><input type="number" ng-model="minSalary" class="form-control" placeholder="Min Salary"></div>
+    <div class="col-md-3"><input type="number" ng-model="maxSalary" class="form-control" placeholder="Max Salary"></div>
+  </div>
+
+  <!-- EXPORT -->
+  <div class="text-right">
+    <button class="btn btn-success" ng-click="exportCSV()">Export CSV</button>
+  </div>
+
+  <!-- TABLE -->
+  <table class="table table-bordered table-striped">
+    <thead>
+      <tr>
+        <th ng-click="setSort('id')">ID</th>
+        <th ng-click="setSort('name')">Name</th>
+        <th ng-click="setSort('department')">Department</th>
+        <th ng-click="setSort('salary')">Salary</th>
+        <th>Photo</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr ng-repeat="emp in getPaginatedEmployees()">
+        <td>{{ emp.id }}</td>
+        <td>{{ emp.name }}</td>
+        <td>{{ emp.department }}</td>
+        <td>{{ emp.salary }}</td>
+        <td><img ng-src="{{ emp.photo }}" class="thumb" ng-if="emp.photo"></td>
+        <td>
+          <span class="label" ng-class="emp.status === 'Active' ? 'label-success' : 'label-default'">{{ emp.status }}</span>
+          <button class="btn btn-link btn-xs" ng-click="toggleStatus(emp)">Toggle</button>
+        </td>
+        <td>
+          <button class="btn btn-info btn-xs" ng-click="editEmployee(emp)">Edit</button>
+          <button class="btn btn-danger btn-xs" ng-click="deleteEmployee(emp.id)">Delete</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- PAGINATION -->
+  <nav class="text-center">
+    <ul class="pagination">
+      <li ng-class="{disabled: currentPage === 1}">
+        <a href="#" ng-click="goToPage(currentPage - 1)">&laquo;</a>
+      </li>
+      <li ng-repeat="page in getPageNumbers()" ng-class="{active: currentPage === page}">
+        <a href="#" ng-click="goToPage(page)">{{ page }}</a>
+      </li>
+      <li ng-class="{disabled: currentPage === pageCount}">
+        <a href="#" ng-click="goToPage(currentPage + 1)">&raquo;</a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast">{{ toastMessage }}</div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <h4>Connect with Hrishikesh Shahane</h4>
+  <div class="social-icons">
+    <a href="https://www.linkedin.com/in/hrishikesh-shahane-a0a19a258/" target="_blank" class="social-icon">
+      <i class="fab fa-linkedin"></i>
+    </a>
+    <a href="https://github.com/Hrishi-3000" target="_blank" class="social-icon">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://hrishikesh-shahane-portfolio.vercel.app/" target="_blank" class="social-icon">
+      <i class="fas fa-globe"></i>
+    </a>
+    <a href="https://www.instagram.com/hrishikesh__2003/" target="_blank" class="social-icon">
+      <i class="fab fa-instagram"></i>
+    </a>
+    <a href="https://www.blogger.com/profile/06534898699057353590" target="_blank" class="social-icon">
+      <i class="fab fa-blogger"></i>
+    </a>
+  </div>
+</footer>
+
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.7.9/angular.min.js"></script>
+<script>
+  const app = angular.module('employeeApp', []);
+
+  app.directive('fileModel', ['$parse', function($parse) {
+    return {
+      restrict: 'A',
+      link: function(scope, element, attrs) {
+        const model = $parse(attrs.fileModel);
+        element.bind('change', function() {
+          scope.$apply(function() {
+            const file = element[0].files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = function(e) {
+                scope.employee.photo = e.target.result;
+                scope.$apply();
+              };
+              reader.readAsDataURL(file);
+            }
+          });
+        });
+      }
+    };
+  }]);
+
+  app.controller('EmployeeCtrl', function($scope) {
+    $scope.employees = JSON.parse(localStorage.getItem('employees')) || [];
+    $scope.nextId = parseInt(localStorage.getItem('nextId')) || 1;
+    $scope.employee = {};
+    $scope.editMode = false;
+    $scope.sortColumn = 'id';
+    $scope.reverseSort = false;
+    $scope.toastMessage = '';
+    $scope.itemsPerPage = 5;
+    $scope.currentPage = 1;
+    $scope.filteredEmployees = [];
+
+    $scope.addOrUpdateEmployee = function() {
+      if ($scope.editMode) {
+        const index = $scope.employees.findIndex(emp => emp.id === $scope.employee.id);
+        $scope.employees[index] = angular.copy($scope.employee);
+        $scope.showToast("Employee updated");
+      } else {
+        $scope.employee.id = $scope.nextId++;
+        $scope.employee.status = "Active";
+        $scope.employees.push(angular.copy($scope.employee));
+        $scope.showToast("Employee added");
+      }
+      $scope.saveToStorage();
+      $scope.resetForm();
+    };
+
+    $scope.editEmployee = function(emp) {
+      $scope.employee = angular.copy(emp);
+      $scope.editMode = true;
+    };
+
+    $scope.deleteEmployee = function(id) {
+      if (confirm("Are you sure?")) {
+        $scope.employees = $scope.employees.filter(emp => emp.id !== id);
+        $scope.showToast("Employee deleted");
+        $scope.saveToStorage();
+      }
+    };
+
+    $scope.resetForm = function() {
+      $scope.employee = {};
+      $scope.editMode = false;
+      document.querySelector('input[type="file"]').value = null;
+    };
+
+    $scope.setSort = function(col) {
+      $scope.sortColumn = col;
+      $scope.reverseSort = !$scope.reverseSort;
+    };
+
+    $scope.toggleStatus = function(emp) {
+      emp.status = emp.status === 'Active' ? 'Inactive' : 'Active';
+      $scope.showToast(`Marked ${emp.name} as ${emp.status}`);
+      $scope.saveToStorage();
+    };
+
+    $scope.updateFilteredList = function() {
+      const s = ($scope.searchText || '').toLowerCase();
+      const d = $scope.deptFilter || '';
+      const min = $scope.minSalary || 0;
+      const max = $scope.maxSalary || Infinity;
+
+      $scope.filteredEmployees = $scope.employees.filter(emp =>
+        (!s || emp.name.toLowerCase().includes(s) || emp.department.toLowerCase().includes(s) || emp.id.toString().includes(s)) &&
+        (!d || emp.department === d) &&
+        emp.salary >= min &&
+        emp.salary <= max
+      ).sort((a, b) => {
+        const valA = a[$scope.sortColumn];
+        const valB = b[$scope.sortColumn];
+        return ($scope.reverseSort ? valB - valA : valA - valB);
+      });
+    };
+
+    $scope.getPaginatedEmployees = function() {
+      const start = ($scope.currentPage - 1) * $scope.itemsPerPage;
+      return $scope.filteredEmployees.slice(start, start + $scope.itemsPerPage);
+    };
+
+    $scope.getPageNumbers = function() {
+      $scope.pageCount = Math.ceil($scope.filteredEmployees.length / $scope.itemsPerPage) || 1;
+      return Array.from({ length: $scope.pageCount }, (_, i) => i + 1);
+    };
+
+    $scope.goToPage = function(p) {
+      if (p >= 1 && p <= $scope.pageCount) $scope.currentPage = p;
+    };
+
+    $scope.saveToStorage = function() {
+      localStorage.setItem('employees', JSON.stringify($scope.employees));
+      localStorage.setItem('nextId', $scope.nextId.toString());
+      $scope.updateFilteredList();
+    };
+
+    $scope.exportCSV = function() {
+      let csv = 'ID,Name,Department,Salary,Status\n';
+      $scope.employees.forEach(emp => {
+        csv += `${emp.id},${emp.name},${emp.department},${emp.salary},${emp.status}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "employees.csv";
+      link.click();
+    };
+
+    $scope.showToast = function(msg) {
+      $scope.toastMessage = msg;
+      const toast = document.getElementById('toast');
+      toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 2000);
+    };
+
+    $scope.$watchGroup(['searchText', 'deptFilter', 'minSalary', 'maxSalary', 'employees', 'sortColumn', 'reverseSort'], function() {
+      $scope.updateFilteredList();
+    });
+
+    $scope.updateFilteredList(); // Initial call
+  });
+</script>
+</body>
+</html>
